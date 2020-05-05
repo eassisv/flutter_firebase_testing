@@ -1,7 +1,6 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:http/http.dart' as http;
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
@@ -10,16 +9,14 @@ NotificationAppLaunchDetails notificationAppLaunchDetails;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await initializateLocalNotifications();
+  await initializeLocalNotifications();
   runApp(MyApp());
 }
 
 Future<dynamic> onBackgroundMessageHandler(Map<String, dynamic> message) async {
   print("onBackgroundMessage: $message");
-  final res = await http.get("https://www.reddit.com/r/aww.json");
-  print("Response: ${res.body}");
-  initializateLocalNotifications();
-  showNotification(message);
+  await initializeLocalNotifications();
+  await showNotification(message);
 }
 
 class ReceivedNotification {
@@ -36,19 +33,18 @@ class ReceivedNotification {
   });
 }
 
-bool initializatedLocalNotifications = false;
+bool initializedLocalNotifications = false;
 
-initializateLocalNotifications() async {
-  if (initializatedLocalNotifications) return;
-  initializatedLocalNotifications = true;
+initializeLocalNotifications() async {
+  if (initializedLocalNotifications) return;
+  initializedLocalNotifications = true;
 
   notificationAppLaunchDetails =
       await flutterLocalNotificationsPlugin.getNotificationAppLaunchDetails();
 
   var initializationSettingsAndroid =
       AndroidInitializationSettings('@mipmap/ic_launcher');
-  // Note: permissions aren't requested here just to demonstrate that can be done later using the `requestPermissions()` method
-  // of the `IOSFlutterLocalNotificationsPlugin` class
+
   var initializationSettingsIOS = IOSInitializationSettings(
       requestAlertPermission: false,
       requestBadgePermission: false,
@@ -76,6 +72,21 @@ showNotification(message) async {
   );
   flutterLocalNotificationsPlugin.show(1, "notification title",
       message['data']['message'], platformChannelSpecifics);
+
+  await flutterLocalNotificationsPlugin.showDailyAtTime(
+      hashValues(message['data']['hour'], message['data']['mins']),
+      "title",
+      "${message['data']['hour']} - ${message['data']['mins']}",
+      Time(int.parse(message['data']['hour']),
+          int.parse(message['data']['mins']), 0),
+      platformChannelSpecifics);
+
+  final pending =
+      await flutterLocalNotificationsPlugin.pendingNotificationRequests();
+
+  for (var n in pending) {
+    print('PENDING --> ${n.body} || ${n.id}');
+  }
 }
 
 class MyApp extends StatefulWidget {
@@ -90,7 +101,7 @@ class _MyAppState extends State<MyApp> {
     super.initState();
     _firebaseMessaging.configure(
       onMessage: (Map<String, dynamic> message) async {
-        showNotification(message);
+        await showNotification(message);
         print("onMessage: $message");
       },
       onLaunch: (Map<String, dynamic> message) async {
